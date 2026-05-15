@@ -12,7 +12,7 @@ app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-  origin: "http://localhost:5173", // or your deployed frontend URL
+  origin: "https://www.afrirecipes.com", // or your deployed frontend URL
   credentials: true,
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE"]
 }));
