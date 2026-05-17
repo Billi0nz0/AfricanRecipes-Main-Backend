@@ -1,29 +1,19 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async ({ to, subject, html }) => {
     try {
-        const transporter = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 587,
-            secure: false,
-            family: 4, // FORCE IPv4
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-
-        const mailOptions = {
-            from: `"African Recipes" <${process.env.EMAIL_USER}>`,
+        const response = await resend.emails.send({
+            from: "African Recipes <noreply@afrirecipes.com>",
             to,
             subject,
             html,
-        };
+        });
 
-        await transporter.sendMail(mailOptions);
-        console.log("Email sent successfully");
+        console.log("Email sent successfully", response);
     } catch (error) {
-        console.error("Email error:", error.message);
+        console.error("Email error:", error);
         throw new Error("Email could not be sent");
     }
 };
