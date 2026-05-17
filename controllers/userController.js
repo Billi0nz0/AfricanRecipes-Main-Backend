@@ -136,6 +136,7 @@ exports.getMe = async (req, res) => {
         res.status(401).json({ message: "Invalid token" });
     }
 };
+
 exports.getProfile = async(req, res) => {
     try {
         const {_id} = req.params;
