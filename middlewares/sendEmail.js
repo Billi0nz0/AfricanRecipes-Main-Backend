@@ -8,8 +8,8 @@ const sendEmail = async ({ to, subject, html }) => {
             secure: false,
             family: 4, // FORCE IPv4
             auth: {
-                user: process.env.EMAIL,
-                pass: process.env.PASSWORD,
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
             },
         });
 
