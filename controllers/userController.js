@@ -111,7 +111,31 @@ exports.logout = async(req, res) => {
 };
 
 
+exports.getMe = async (req, res) => {
+    try {
+        const token = req.cookies.token;
 
+        if (!token) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        const user = await userModel.findById(decoded._id).select("-password");
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({ user });
+
+    } catch (error) {
+        if (error.name === "TokenExpiredError") {
+            return res.status(401).json({ message: "Token expired, please login again" });
+        }
+        res.status(401).json({ message: "Invalid token" });
+    }
+};
 exports.getProfile = async(req, res) => {
     try {
         const {_id} = req.params;
