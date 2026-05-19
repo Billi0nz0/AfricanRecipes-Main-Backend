@@ -337,8 +337,8 @@ exports.login = async(req, res) => {
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: false, // set true if using HTTPS
-            sameSite: "lax", // or "none" if cross-site HTTPS
+            secure: true, // set true if using HTTPS
+            sameSite: "none", // or "none" if cross-site HTTPS
             maxAge: 60 * 60 * 1000, // 1 hour
         });
 
@@ -364,7 +364,7 @@ exports.login = async(req, res) => {
 
 exports.logout = async(req, res) => {
     try {
-        res.clearCookie("token", { httpOnly: true, sameSite: "lax", secure: false });
+        res.clearCookie("token", { httpOnly: true, sameSite: "true", secure: none });
         res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
         console.error("Logout Error", error.message);
