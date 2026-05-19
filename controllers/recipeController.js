@@ -1,4 +1,5 @@
 const recipeModel = require("../models/recipeModel");
+const likeModel = require("../models/likeModel");
 
 exports.createRecipe = async (req, res) => {
     try {
@@ -104,79 +105,131 @@ exports.getAllRecipes = async (req, res) => {
   }
 };
 
+
 exports.getRecipeById = async (req, res) => {
-    try {
-        const { _id } = req.params;
-        const recipe = await recipeModel.findById(_id)
-            .populate("createdBy", "username email") 
-            .populate("category", "name");
+  try {
+    const { _id } = req.params;
+    const userId = req.user?._id;
 
-        if (!recipe) {
-            return res.status(404).json({ message: "Recipe not found" });
-        }
+    const recipe = await recipeModel
+      .findById(_id)
+      .populate("createdBy", "username");
 
-        res.status(200).json({
-            message: "Recipe retrieved successfully",
-            recipe
-        });
-    } catch (error) {
-        console.error("Get Recipe by ID Error:", error.message);
-        res.status(500).json({ message: "Server error" });
+    if (!recipe) {
+      return res.status(404).json({ message: "Recipe not found" });
     }
+
+    // ✅ likes count
+    const likesCount = await likeModel.countDocuments({ recipe: _id });
+
+    // ✅ is liked (only if logged in)
+    let isLiked = false;
+
+    if (userId) {
+      const existing = await likeModel.findOne({
+        recipe: _id,
+        createdBy: userId
+      });
+
+      isLiked = !!existing;
+    }
+
+    res.json({
+      recipe,
+      likesCount,
+      isLiked
+    });
+
+  } catch (error) {
+    console.error("GET RECIPE ERROR:", error);
+    res.status(500).json({ message: "Error fetching recipe" });
+  }
 };
 
+exports.getMyRecipes = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { sort = "desc" } = req.query; 
+
+    const sortOption = sort === "asc" 
+      ? { createdAt: 1 } 
+      : { createdAt: -1 };
+
+    const recipes = await recipeModel
+      .find({ createdBy: userId })
+      .sort(sortOption)
+      .populate("category", "name");
+
+    res.status(200).json({
+      recipes
+    });
+
+  } catch (error) {
+    console.error("Get My Recipes Error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const mongoose = require("mongoose");
+
 exports.updateRecipe = async (req, res) => {
-    try {
-        const { _id } = req.params;
+  try {
+    const { _id } = req.params;
 
-        const updates = {};
-
-        const fields = [
-            "imageUrl",
-            "title",
-            "country",
-            "prepTime",
-            "servings",
-            "cookTime",
-            "difficulty",
-            "ingredients",
-            "instructions",
-            "isFeatured",
-            "description"
-        ];
-
-        fields.forEach(field => {
-            if (req.body[field] !== undefined) {
-                updates[field] = req.body[field];
-            }
-        });
-
-        const forbiddenFields = ["createdBy", "_id"];
-
-        for (let key of forbiddenFields) {
-            if (req.body[key]) {
-                delete req.body[key];
-            }
-        }
-
-        const recipe = await recipeModel.findByIdAndUpdate(_id,
-            { $set: updates },
-            { new: true, runValidators: true }
-        );
-
-        if (!recipe) {
-            return res.status(404).json({ message: "Recipe not found" });
-        }
-
-        res.status(200).json({
-            message: "Recipe updated successfully",
-            recipe
-        });
-
-    } catch (error) {
-        console.error("Update Recipe Error:", error.message);
-        res.status(500).json({ message: "Server error" });
+    if (!mongoose.Types.ObjectId.isValid(_id)) {
+      return res.status(400).json({ message: "Invalid recipe ID" });
     }
+
+    // ✅ Fields allowed to update
+    const allowedFields = [
+      "imageUrl",
+      "title",
+      "country",
+      "prepTime",
+      "servings",
+      "cookTime",
+      "difficulty",
+      "ingredients",
+      "instructions",
+      "isFeatured",
+      "description",
+      "category",   
+      "tags"        
+    ];
+
+    const updates = {};
+
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    // ✅ Remove forbidden fields safely
+    delete updates.createdBy;
+    delete updates._id;
+
+    const recipe = await recipeModel.findByIdAndUpdate(
+      _id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    )
+    .populate("category", "name")
+    .populate("createdBy", "username");
+
+    if (!recipe) {
+      return res.status(404).json({ message: "Recipe not found" });
+    }
+
+    res.status(200).json({
+      message: "Recipe updated successfully",
+      recipe
+    });
+
+  } catch (error) {
+    console.error("Update Recipe Error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
 exports.deleteRecipe = async (req, res) => {

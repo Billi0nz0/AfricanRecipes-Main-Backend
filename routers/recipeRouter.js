@@ -8,6 +8,7 @@ const {
     getRecipeById, 
     updateRecipe, 
     deleteRecipe, 
+    getMyRecipes,
     getRecipesByCategory,
     getFeaturedRecipes,
     getRandomRecipes
@@ -19,6 +20,7 @@ router.get("/", getAllRecipes);
 router.get("/featured", getFeaturedRecipes);
 router.get("/random", getRandomRecipes);
 router.get("/category/:categoryId", getRecipesByCategory);
+router.get("/my", authenticate, getMyRecipes);
 router.get("/:_id", getRecipeById);
 router.put("/:_id", authenticate, canModifyRecipe, updateRecipe);
 router.delete("/:_id", authenticate, canModifyRecipe, deleteRecipe);

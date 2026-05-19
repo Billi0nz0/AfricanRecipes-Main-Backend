@@ -13,7 +13,7 @@ exports.toggleLike = async (req, res) => {
 
     const existingLike = await likeModel.findOne({
       recipe: _id,
-      createdBy: user._id,
+      user: user._id,
     });
 
     let isLiked;
@@ -22,7 +22,7 @@ exports.toggleLike = async (req, res) => {
       await likeModel.deleteOne({ _id: existingLike._id });
       isLiked = false;
     } else {
-      await likeModel.create({ recipe: _id, createdBy: user._id });
+      await likeModel.create({ recipe: _id, user: user._id });
       isLiked = true;
     }
 
@@ -47,6 +47,27 @@ exports.toggleLike = async (req, res) => {
   }
 };
 
+exports.isLiked = async (req, res) => {
+  try {
+    const recipeId = req.params._id;
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.json({ isLiked: false });
+    }
+
+    const existing = await likeModel.findOne({
+      recipe: recipeId,
+      user: userId
+    });
+
+    return res.json({ isLiked: !!existing });
+  } catch (err) {
+    console.error("isLiked error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 exports.getLikesByRecipe = async (req, res) => {
   try {
     const { _id } = req.params;
@@ -59,13 +80,54 @@ exports.getLikesByRecipe = async (req, res) => {
 
 exports.getLikedRecipesByUser = async (req, res) => {
   try {
-    const user = req.user;
-    const likedRecipes = await likeModel
-      .find({ createdBy: user._id })
-      .populate("recipe", "title");
-    res.json({ likedRecipes: likedRecipes.map((like) => like.recipe) });
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching liked recipes", error });
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const sort = req.query.sort || "latest";
+
+    let sortOption = {};
+
+    if (sort === "latest") {
+      sortOption = { createdAt: -1 };
+    } else if (sort === "oldest") {
+      sortOption = { createdAt: 1 };
+    }
+
+    const likes = await likeModel
+     .find({
+        $or: [
+          { user: userId },
+          { createdBy: userId }
+        ]
+      }) 
+      .populate("recipe")
+      .skip(skip)
+      .limit(limit)
+      .sort(sortOption);
+
+    const total = await likeModel.countDocuments({
+      user: userId
+    });
+
+    res.json({
+      recipes: likes.map((l) => l.recipe),
+      pages: Math.ceil(total / limit),
+      page
+    });
+
+  } catch (err) {
+    console.error("GET LIKED ERROR:", err);
+    res.status(500).json({
+      message: "Error fetching liked recipes",
+      error: err.message
+    });
   }
 };
 

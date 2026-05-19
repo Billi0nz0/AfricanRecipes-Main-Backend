@@ -4,111 +4,6 @@ const jwt = require('jsonwebtoken');
 const sendEmail = require("../middlewares/sendEmail");
 const crypto = require("crypto");
 
-exports.register = async (req, res) => {
-  try {
-    const { password } = req.body;
-    const email = req.body.email.toLowerCase().trim();
-    const username = req.body.username.toLowerCase().trim();
-
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    const exists = await userModel.findOne({
-      $or: [{ email }, { username }]
-    });
-
-    if (exists) {
-      if (exists.email === email) {
-        return res.status(409).json({ message: "Email already exists" });
-      }
-      if (exists.username === username) {
-        return res.status(409).json({ message: "Username already in use" });
-      }
-    }
-
-    const user = await userModel.create({
-      username,
-      email,
-      password,
-      role: "user"
-    });
-
-    res.status(201).json({
-      message: "User created successfully",
-      userName: user.username,
-      role: user.role
-    });
-
-  } catch (error) {
-    console.error("Registration Error", error.message);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-exports.login = async(req, res) => {
-    try {
-        const {email, password} = req.body;
-
-        if(!email || !password) {
-            return res.status(400).json({message: "Email and password are required"});
-        }
-
-        const user = await userModel.findOne({email: email.toLowerCase().trim()});
-        if (!user) {
-            return res.status(400).json({message: "Invalid credentials"});
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            return res.status(400).json({message: "Invalid credentials"});
-            
-        }
-
-        if (user.isBanned) {
-            return res.status(403).json({ message: "Your account has been banned. Please contact support." });
-            console.log("isBanned:", user.isBanned);
-        }
-
-        res.clearCookie("token");
-
-        const token = jwt.sign(
-            { _id: user._id, email: user.email, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: "1h" }
-        );
-
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: true, // set true if using HTTPS
-            sameSite: "none", // or "none" if cross-site HTTPS
-            maxAge: 60 * 60 * 1000, // 1 hour
-        });
-
-        res.status(200).json({ 
-            message: "Login Successful", 
-            userName: user.username, 
-            role: user.role 
-        });
-
-        
-
-    } catch (error) {
-        console.error("Login Error", error.message);
-        res.status(500).json({message: "Server error"});
-    }
-};
-
-exports.logout = async(req, res) => {
-    try {
-        res.clearCookie("token", { httpOnly: true, sameSite: "none", secure: true });
-        res.status(200).json({ message: "Logged out successfully" });
-    } catch (error) {
-        console.error("Logout Error", error.message);
-        res.status(500).json({ message: "Server error" });
-    }
-};
 
 
 exports.getMe = async (req, res) => {
@@ -192,30 +87,80 @@ exports.searchUsers = async (req, res) => {
     }
 };
 
-exports.updateProfile = async(req, res) => {
+exports.updateProfile = async (req, res) => {
     try {
-        const {_id} = req.params;
-        const {email, password} = req.body;
+        const { _id } = req.params;
+        const { username, profilePhoto } = req.body;
 
-        const user = await userModel.findByIdAndUpdate(_id, { email, password }, { new: true });
+        const user = await userModel.findById(_id);
 
         if (!user) {
-            return res.status(404).json({message: "User not found"});
+            return res.status(404).json({ message: "User not found"});
         }
 
-        if (email) user.email = email;
-        if (password) {
-            const salt = await bcrypt.genSalt(10);
-            user.password = await bcrypt.hash(password, salt);
+        if (username) {
+
+            const existingUser =
+                await userModel.findOne({
+                    username: username.toLowerCase().trim(),
+                    _id: { $ne: _id }
+                });
+
+            if (existingUser) {
+                return res.status(400).json({
+                    message: "Username already exists"
+                });
+            }
+
+            user.username =
+                username.toLowerCase().trim();
+        }
+
+        if (profilePhoto) {
+
+            const FOUR_MONTHS = 1000 * 60 * 60 * 24 * 30 * 4;
+
+            if (user.oldPhotoUpdate) {
+
+                const diff =
+                    Date.now() -
+                    new Date(
+                        user.oldPhotoUpdate
+                    ).getTime();
+
+                if (diff < FOUR_MONTHS) {
+
+                    const daysLeft = Math.ceil(
+                        (FOUR_MONTHS - diff) /
+                        (1000 * 60 * 60 * 24)
+                    );
+
+                    return res.status(403).json({
+                        message:
+                        `You can change your profile photo again in ${daysLeft} days`
+                    });
+                }
+            }
+
+            user.profilePhoto = profilePhoto;
+
+            user.oldPhotoUpdate = new Date();
         }
 
         await user.save();
 
-        res.status(200).json({ message: "Profile updated successfully", user });
+        res.status(200).json({
+            message: "Profile updated successfully",
+            user
+        });
 
     } catch (error) {
-        console.error("Update Profile Error", error.message);
-        res.status(500).json({message: "Server error"});
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Server error"
+        });
     }
 };  
 
@@ -309,7 +254,173 @@ exports.toggleBanUser = async (req, res) => {
     }
 };
 
+
+// Auth
+exports.register = async (req, res) => {
+  try {
+    const { password } = req.body;
+    const email = req.body.email.toLowerCase().trim();
+    const username = req.body.username.toLowerCase().trim();
+
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const exists = await userModel.findOne({
+      $or: [{ email }, { username }]
+    });
+
+    if (exists) {
+      if (exists.email === email) {
+        return res.status(409).json({ message: "Email already exists" });
+      }
+      if (exists.username === username) {
+        return res.status(409).json({ message: "Username already in use" });
+      }
+    }
+
+    const user = await userModel.create({
+      username,
+      email,
+      password,
+      role: "user"
+    });
+
+    res.status(201).json({
+      message: "User created successfully",
+      userName: user.username,
+      role: user.role
+    });
+
+  } catch (error) {
+    console.error("Registration Error", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.login = async(req, res) => {
+    try {
+        const {email, password} = req.body;
+
+        if(!email || !password) {
+            return res.status(400).json({message: "Email and password are required"});
+        }
+
+        const user = await userModel.findOne({email: email.toLowerCase().trim()});
+        if (!user) {
+            return res.status(400).json({message: "Invalid credentials"});
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res.status(400).json({message: "Invalid credentials"});
+            
+        }
+
+        if (user.isBanned) {
+            return res.status(403).json({ message: "Your account has been banned. Please contact support." });
+            console.log("isBanned:", user.isBanned);
+        }
+
+        res.clearCookie("token");
+
+        if (!process.env.JWT_SECRET) {
+            throw new Error("JWT_SECRET is not defined");
+        }
+
+        const token = jwt.sign(
+            { _id: user._id, email: user.email, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "1h" }
+        );
+
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: false, // set true if using HTTPS
+            sameSite: "lax", // or "none" if cross-site HTTPS
+            maxAge: 60 * 60 * 1000, // 1 hour
+        });
+
+        res.status(200).json({ 
+            message: "Login Successful",
+            role: user.role, 
+            user: {
+                _id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                profilePhoto: user.profilePhoto
+            }
+        });
+
+        
+
+    } catch (error) {
+        console.error("Login Error", error.message);
+        res.status(500).json({message: "Server error"});
+    }
+};
+
+exports.logout = async(req, res) => {
+    try {
+        res.clearCookie("token", { httpOnly: true, sameSite: "lax", secure: false });
+        res.status(200).json({ message: "Logged out successfully" });
+    } catch (error) {
+        console.error("Logout Error", error.message);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
 // password forgot/reset logic
+
+exports.changePassword = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { oldPassword, newPassword } = req.body;
+
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({
+                message: "Old and new password are required"
+            });
+        }
+
+        const user = await userModel.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const isMatch = await bcrypt.compare(
+            oldPassword,
+            user.password
+        );
+
+        if (!isMatch) {
+            return res.status(400).json({
+                message: "Old password is incorrect"
+            });
+        }
+
+        // ❗ IMPORTANT: assign raw password only
+        user.password = newPassword;
+
+        await user.save();
+
+        res.status(200).json({
+            message: "Password updated successfully"
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
+
 exports.forgotPassword = async (req, res) => {
     try {
         const { emailOrUsername } = req.body;
@@ -356,6 +467,7 @@ exports.forgotPassword = async (req, res) => {
                             
                             <!-- Header -->
                             <tr>
+                                <img src=
                                 <td>
                                 <h2 style="color:#8d3304; margin-bottom:10px;">Reset Your Password</h2>
                                 <p style="color:#666; font-size:14px;">Secure your account with a new password</p>
