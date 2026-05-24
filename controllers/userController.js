@@ -4,7 +4,13 @@ const jwt = require('jsonwebtoken');
 const sendEmail = require("../middlewares/sendEmail");
 const crypto = require("crypto");
 
-
+const cookieOptions = {
+  httpOnly: true,
+  secure: true,        // must be HTTPS 
+  sameSite: "none",    // required for cross-site frontend/backend
+  path: "/",
+  maxAge: 5 * 60 * 60 * 1000, // 5 hours
+};
 
 exports.getMe = async (req, res) => {
     try {
@@ -335,12 +341,7 @@ exports.login = async(req, res) => {
             { expiresIn: "5h" }
         );
 
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: true, // set true if using HTTPS
-            sameSite: "none", // or "none" if cross-site HTTPS
-            maxAge: 60 * 60 * 5000, // 5 hour
-        });
+        res.cookie("token", token, cookieOptions);
 
         res.status(200).json({ 
             message: "Login Successful",
@@ -364,7 +365,7 @@ exports.login = async(req, res) => {
 
 exports.logout = async(req, res) => {
     try {
-        res.clearCookie("token", { httpOnly: true, sameSite: "none", secure: true });
+        res.clearCookie("token", cookieOptions);
         res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
         console.error("Logout Error", error.message);
