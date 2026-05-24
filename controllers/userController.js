@@ -7,7 +7,7 @@ const crypto = require("crypto");
 const cookieOptions = {
   httpOnly: true,
   secure: true,        // must be HTTPS 
-  sameSite: "none",    // required for cross-site frontend/backend
+  sameSite: "lax",    // required for cross-site frontend/backend
   path: "/",
   maxAge: 5 * 60 * 60 * 1000, // 5 hours
 };
