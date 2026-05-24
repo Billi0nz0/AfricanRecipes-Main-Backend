@@ -15,7 +15,6 @@ app.use(cookieParser());
 
 app.use(cors({
   origin: [
-      "http://localhost:5173",
       "https://afrirecipes.com",
       "https://www.afrirecipes.com"
     ], // or your deployed frontend URL
