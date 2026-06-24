@@ -8,8 +8,11 @@ const userSchema = new mongoose.Schema({
     username: {type: String, required: true, unique: true},
     email: {type: String, required: true, unique: true},
     role: {type: String, enum: ['user', 'admin', 'superAdmin'], default: 'user'},
-
+    
     password: {type: String, required: true},
+
+    profilePhoto: {type: String, default: ""},
+    lastProfilePhotoUpdate: {type: Date, default: null},
 
     isActive: { type: Boolean, default: true },
     isBanned: { type: Boolean, default: false },
