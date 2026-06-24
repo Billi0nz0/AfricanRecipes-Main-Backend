@@ -140,6 +140,10 @@ exports.searchUsers = async (req, res) => {
 // ==============================
 exports.updateProfile = async (req, res) => {
   try {
+    
+    console.log("PARAMS:", req.params);
+    console.log("BODY:", req.body);
+    console.log("PROFILE PHOTO:", req.body.profilePhoto);
     const { _id } = req.params;
     const { username, profilePhoto } = req.body;
 
