@@ -139,79 +139,54 @@ exports.searchUsers = async (req, res) => {
 // UPDATE PROFILE
 // ==============================
 exports.updateProfile = async (req, res) => {
-  try {
-    
-    console.log("PARAMS:", req.params);
-    console.log("BODY:", req.body);
-    console.log("PROFILE PHOTO:", req.body.profilePhoto);
-    const { _id } = req.params;
-    const { username, profilePhoto } = req.body;
+    try {
+        const { _id } = req.params;
+        const { username, profilePhoto } = req.body;
 
-    const user = await userModel.findById(_id);
+        console.log("Incoming profilePhoto:", profilePhoto);
 
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found",
-      });
-    }
+        const user = await userModel.findById(_id);
 
-    // UPDATE USERNAME
-    if (username) {
-      const existingUser = await userModel.findOne({
-        username: username.toLowerCase().trim(),
-        _id: { $ne: _id },
-      });
-
-      if (existingUser) {
-        return res.status(400).json({
-          message: "Username already exists",
-        });
-      }
-
-      user.username = username.toLowerCase().trim();
-    }
-
-    // UPDATE PROFILE PHOTO
-    if (profilePhoto) {
-      const FOUR_MONTHS =
-        1000 * 60 * 60 * 24 * 30 * 4;
-
-      if (user.oldPhotoUpdate) {
-        const diff =
-          Date.now() -
-          new Date(user.oldPhotoUpdate).getTime();
-
-        if (diff < FOUR_MONTHS) {
-          const daysLeft = Math.ceil(
-            (FOUR_MONTHS - diff) /
-            (1000 * 60 * 60 * 24)
-          );
-
-          return res.status(403).json({
-            message:
-              `You can change your profile photo again in ${daysLeft} days`,
-          });
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
         }
-      }
 
-      user.profilePhoto = profilePhoto;
-      user.oldPhotoUpdate = new Date();
+        if (profilePhoto) {
+            user.profilePhoto = profilePhoto;
+
+            console.log(
+                "Before save:",
+                user.profilePhoto
+            );
+        }
+
+        if (username) {
+            user.username = username;
+        }
+
+        await user.save();
+
+        const updatedUser =
+            await userModel.findById(_id);
+
+        console.log(
+            "After save:",
+            updatedUser.profilePhoto
+        );
+
+        return res.status(200).json({
+            message: "Updated",
+            user: updatedUser
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            message: "Server error"
+        });
     }
-
-    await user.save();
-
-    res.status(200).json({
-      message: "Profile updated successfully",
-      user,
-    });
-
-  } catch (error) {
-    console.error("Update Profile Error:", error.message);
-
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
 };
 
 // ==============================
