@@ -173,8 +173,10 @@ exports.updateProfile = async (req, res) => {
 
         console.log(
             "After save:",
-            updatedUser.profilePhoto
+            updatedUser.profilePhoto,
         );
+      
+        console.log("updatedUser:", updatedUser);
 
         return res.status(200).json({
             message: "Updated",
