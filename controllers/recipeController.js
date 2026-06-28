@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const recipeModel = require("../models/recipeModel");
 const likeModel = require("../models/likeModel");
 
@@ -62,30 +63,61 @@ exports.createRecipe = async (req, res) => {
 
 exports.getAllRecipes = async (req, res) => {
   try {
-    const { search, category, page = 1, limit = 10 } = req.query;
+    const { search = "",
+      category,
+      page = 1,
+      limit = 10,
+    } = req.query;
 
-    let filter = {};
+    const filter = {};
 
-    if (search) {
-      filter = { $text: { $search: search } };
+    // Search across multiple fields
+    if (search.trim()) {
+      filter.$or = [
+        {
+          title: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+        {
+          description: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+        {
+          country: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+        {
+          tags: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+        {
+          ingredients: {
+            $elemMatch: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+        },
+      ];
     }
 
+    // Category filter
     if (category) {
       filter.category = category;
     }
 
-    let query = recipeModel.find(filter);
-
-    if (search) {
-      query = query
-        .select({ score: { $meta: "textScore" } })
-        .sort({ score: { $meta: "textScore" } });
-    } else {
-      query = query.sort({ createdAt: -1 });
-    }
-
-    const recipes = await query
-      .skip((page - 1) * limit)
+    const recipes = await recipeModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
       .populate("createdBy", "username")
       .populate("category", "name");
@@ -98,10 +130,11 @@ exports.getAllRecipes = async (req, res) => {
       page: Number(page),
       limit: Number(limit),
     });
-
   } catch (error) {
-    console.error("Search Error:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Get Recipes Error:", error);
+    res.status(500).json({
+      message: "Server error",
+    });
   }
 };
 
@@ -169,8 +202,6 @@ exports.getMyRecipes = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
-const mongoose = require("mongoose");
 
 exports.updateRecipe = async (req, res) => {
   try {
