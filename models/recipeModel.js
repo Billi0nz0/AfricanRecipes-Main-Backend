@@ -27,16 +27,27 @@ const recipeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 recipeSchema.index(
-  { 
+  {
     title: "text",
     description: "text",
     country: "text",
-    "ingredients.name": "text"
+    tags: "text",
+    "ingredients.name": "text",
   },
   {
-    weights: { title: 5, "ingredients.name": 4, description: 2, country: 1}
+    weights: {
+      title: 6,
+      tags: 5,
+      "ingredients.name": 4,
+      description: 2,
+      country: 1,
+    },
   }
 );
+
+recipeSchema.index({ category: 1 });
+recipeSchema.index({ isFeatured: 1 });
+recipeSchema.index({ createdAt: -1 });
 
 const Recipe = mongoose.model("Recipe", recipeSchema);
 module.exports = Recipe;
