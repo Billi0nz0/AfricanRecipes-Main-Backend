@@ -3,13 +3,13 @@ const bcrypt = require('bcryptjs');
 const userIdGen = require('../middlewares/userId');
 
 const userSchema = new mongoose.Schema({
-    userId: {type: String, default: userIdGen},
+    userId: {type: String, default: userIdGen, unique: true},
 
     username: {type: String, required: true, unique: true},
     email: {type: String, required: true, unique: true,  match: /^[a-zA-Z0-9_]+$/},
     role: {type: String, enum: ['user', 'admin', 'superAdmin'], default: 'user'},
     
-    password: {type: String, required: true},
+    password: {type: String, required: true, minlength: 8},
 
     profilePhoto: {type: String, default: ""},
     lastProfilePhotoUpdate: {type: Date, default: null},
