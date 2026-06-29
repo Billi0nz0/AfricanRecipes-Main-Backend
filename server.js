@@ -43,6 +43,9 @@ app.use("/recipes", recipeRouter);
 const commentRouter = require("./routers/commentRouter");
 app.use("/comments", commentRouter);
 
+const contactRouter = require("./routers/contactRouter");
+app.use("/contact", contactRouter);
+
 const likeRouter = require("./routers/likeRouter");
 app.use("/likes", likeRouter);
 
