@@ -389,7 +389,11 @@ exports.register = async (req, res) => {
 
   } catch (error) {
     console.error("Registration Error:", error.message);
-
+    if (error.name === "ValidationError") {
+        return res.status(400).json({
+            message: Object.values(error.errors)[0].message,
+        });
+    }
     res.status(500).json({
       message: "Server error",
     });
