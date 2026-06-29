@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
     userId: {type: String, default: userIdGen},
 
     username: {type: String, required: true, unique: true},
-    email: {type: String, required: true, unique: true},
+    email: {type: String, required: true, unique: true,  match: /^[a-zA-Z0-9_]+$/},
     role: {type: String, enum: ['user', 'admin', 'superAdmin'], default: 'user'},
     
     password: {type: String, required: true},
