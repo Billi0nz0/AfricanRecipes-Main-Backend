@@ -439,6 +439,10 @@ exports.login = async (req, res) => {
       });
     }
 
+    // last login
+    user.lastLogin = new Date();
+    await user.save();
+
     if (!process.env.JWT_SECRET) {
       throw new Error("JWT_SECRET is not defined");
     }
