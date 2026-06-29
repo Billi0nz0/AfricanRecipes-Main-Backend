@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
     userId: {type: String, default: userIdGen, unique: true},
 
     username: {type: String, required: true, unique: true},
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true, match: [/^\S+@\S+\.\S+$/, "Username can only contain letters, numbers and underscores"] },
+    email: {type: String, required: true, unique: true,  match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"]},
     role: {type: String, enum: ['user', 'admin', 'superAdmin'], default: 'user'},
     
     password: {type: String, required: true, minlength: 8},
@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true },
     isBanned: { type: Boolean, default: false },
     lastLogin: { type: Date },
+    isVerified: { type: Boolean, default: false, },
+
+    emailVerificationToken: String,
+    emailVerificationExpires: Date,
 
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
