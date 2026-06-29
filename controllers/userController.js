@@ -1,9 +1,13 @@
 const userModel = require('../models/userModel');
+const crypto = require("crypto");
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sendEmail = require("../middlewares/sendEmail");
 const passwordResetMail = require("../emailTemplates/passwordReset")
-const crypto = require("crypto");
+const verifyEmailTemplate = require("../emailTemplates/verifyMail")
+const welcomeTemplate = require("../emailTemplates/welcomeMail");
+
+
 
 
 
@@ -254,45 +258,149 @@ exports.toggleBanUser = async (req, res) => {
 
 // Auth
 exports.register = async (req, res) => {
-  try {
-    const { password } = req.body;
-    const email = req.body.email.toLowerCase().trim();
-    const username = req.body.username.toLowerCase().trim();
+    try {
+        const { email, username, password } = req.body;
 
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+        if (!username || !email || !password) {
+            return res.status(400).json({
+                message: "All fields are required",
+            });
+        }
+
+        const normalizeEmail = req.body.email.toLowerCase().trim();
+        const normalizeUsername = req.body.username.toLowerCase().trim();
+
+        const exists = await userModel.findOne({
+            $or: [{ email }, { username }],
+        });
+
+        if (exists) {
+            if (exists.email === email) {
+                return res.status(409).json({
+                    message: "Email already exists",
+                });
+            }
+
+            return res.status(409).json({
+                message: "Username already in use",
+            });
+        }
+
+        const verificationToken =
+            crypto.randomBytes(32).toString("hex");
+
+        const hashedToken = crypto
+            .createHash("sha256")
+            .update(verificationToken)
+            .digest("hex");
+
+        const user = await userModel.create({
+            username: normalizeUsername,
+            email: normalizeEmail,
+            password,
+            role: "user",
+            isVerified: false,
+            emailVerificationToken: hashedToken,
+            emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000,
+        });
+
+        const verificationLink =
+            `${process.env.EMAIL_VERIFICATION_URL}/${verificationToken}`;
+
+        try {
+            await sendEmail({
+                to: user.email,
+                subject: "Verify your email address",
+                html: verifyEmailTemplate({
+                    name: user.username,
+                    verificationLink,
+                }),
+            });
+        } catch (err) {
+            await user.deleteOne();
+
+            return res.status(500).json({
+                success: false,
+                message: "We couldn't send the verification email. Please try registering again.",
+            });
+        }
+
+        return res.status(201).json({
+            success: true,
+            message:
+                "Account created successfully. Please verify your email to continue.",
+        });
+
+    } catch (error) {
+        console.error("Registration Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+        });
     }
+};
 
-    const exists = await userModel.findOne({
-      $or: [{ email }, { username }]
-    });
+exports.verifyEmail = async (req, res) => {
+    try {
 
-    if (exists) {
-      if (exists.email === email) {
-        return res.status(409).json({ message: "Email already exists" });
-      }
-      if (exists.username === username) {
-        return res.status(409).json({ message: "Username already in use" });
-      }
+        const hashedToken = crypto
+            .createHash("sha256")
+            .update(req.params.token)
+            .digest("hex");
+
+        const user = await userModel.findOne({
+            emailVerificationToken: hashedToken,
+        });
+
+        if (!user) {
+            return res.redirect(
+                `${process.env.FRONTEND_URL}/verification-failed`
+            );
+        }
+
+        if (user.isVerified) {
+            return res.redirect(
+                `${process.env.FRONTEND_URL}/verified`
+            );
+        }
+
+        if (user.emailVerificationExpires < Date.now()) {
+            return res.redirect(
+                `${process.env.FRONTEND_URL}/verification-expired`
+            );
+        }
+
+        user.isVerified = true;
+        user.emailVerificationExpires = undefined;
+
+        await user.save();
+
+        try {
+            await sendEmail({
+                to: user.email,
+                subject: `Welcome to ${process.env.APP_NAME}! 🎉`,
+                html: welcomeTemplate({
+                    name: user.username,
+                }),
+            });
+        } catch (err) {
+            console.error("Welcome email failed:", err);
+        }
+    
+        return res.redirect(
+            `${process.env.FRONTEND_URL}/verified`
+        );
+
+    } catch (error) {
+
+        console.error("Email Verification:", error);
+
+        return res.redirect(
+            `${process.env.FRONTEND_URL}/verification-failed`
+        );
+
     }
-
-    const user = await userModel.create({
-      username,
-      email,
-      password,
-      role: "user"
-    });
-
-    res.status(201).json({
-      message: "User created successfully",
-      userName: user.username,
-      role: user.role
-    });
-
-  } catch (error) {
-    console.error("Registration Error", error.message);
-    res.status(500).json({ message: "Server error" });
-  }
 };
 
 exports.login = async(req, res) => {
@@ -313,6 +421,14 @@ exports.login = async(req, res) => {
         if (!isMatch) {
             return res.status(400).json({message: "Invalid credentials"});
             
+        }
+
+        if (!user.isVerified) {
+            return res.status(403).json({
+                verified: false,
+                message:
+                    "Please verify your email before logging in.",
+            });
         }
 
         if (user.isBanned) {
@@ -372,8 +488,9 @@ exports.logout = async(req, res) => {
     }
 };
 
-// password forgot/reset logic
 
+
+// password forgot/reset logic
 exports.changePassword = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -442,10 +559,7 @@ exports.forgotPassword = async (req, res) => {
 
         const resetToken = crypto.randomBytes(32).toString("hex");
 
-        const hashedToken = crypto
-            .createHash("sha256")
-            .update(resetToken)
-            .digest("hex");
+        const hashedToken = crypto .createHash("sha256") .update(resetToken) .digest("hex");
 
         user.resetPasswordToken = hashedToken;
         user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
