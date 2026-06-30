@@ -268,10 +268,31 @@ exports.register = async (req, res) => {
         }
 
         const normalizeEmail = req.body.email.toLowerCase().trim();
-        const normalizeUsername = req.body.username.toLowerCase().trim();
+        const normalizeUsername = req.body.username.trim().toLowerCase();
+
+        if (normalizeUsername.length < 3) {
+            return res.status(400).json({
+                message: "Username must be at least 3 characters long.",
+            });
+        }
+
+        const usernameRegex = /^[a-zA-Z0-9_]+$/;
+
+        if (!usernameRegex.test(normalizeUsername)) {
+            return res.status(400).json({
+                message:
+                    "Username can only contain letters, numbers, and underscores.",
+            });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({
+                message: "Password must be at least 8 characters long.",
+            });
+        }
 
         const exists = await userModel.findOne({
-            $or: [{ email }, { username }],
+            $or: [{ email: normalizeEmail }, { username: normalizeUsername }],
         });
 
         if (exists) {
