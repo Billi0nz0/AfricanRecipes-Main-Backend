@@ -15,7 +15,7 @@ const regLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5,
+    max: 10,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -25,7 +25,7 @@ const loginLimiter = rateLimit({
 
 const resetLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5,
+    max: 3,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
