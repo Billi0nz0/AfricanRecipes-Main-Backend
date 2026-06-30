@@ -3,7 +3,7 @@ const route = express.Router();
 const {register, verifyEmail, login, logout, forgotPassword, resetPassword} = require("../controllers/userController");
 
 const rateLimit = require("express-rate-limit");
-const limiter = rateLimit({
+const regLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5,
     standardHeaders: true,
@@ -13,11 +13,31 @@ const limiter = rateLimit({
     },
 });
 
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        message: "Too many login attempts. Please try again in 15 minutes.",
+    },
+});
 
-route.post("/login", limiter, login);
+const resetLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        message: "Too many requests. Please try again in 15 minutes.",
+    },
+});
+
+
+route.post("/login", loginLimiter, login);
 route.post("/logout", logout);
-route.post("/register", limiter, register);
-route.post("/forgotPassword", forgotPassword);
+route.post("/register", regLimiter, register);
+route.post("/forgotPassword", resetLimiter, forgotPassword);
 route.get("/verifyEmail/:token", verifyEmail);
 route.post("/resetPassword/:token", resetPassword);
 
