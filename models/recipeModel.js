@@ -23,7 +23,45 @@ const recipeSchema = new mongoose.Schema({
     ingredients: { type: [ingredientSchema], required: true },
     isFeatured: { type: Boolean, default: false },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    originalCreator: {
+      name: {
+          type: String,
+          default: "",
+          trim: true,
+      },
+
+      username: {
+          type: String,
+          default: "",
+          trim: true,
+      },
+
+      platform: {
+          type: String,
+          enum: [
+              "Instagram",
+              "TikTok",
+              "YouTube",
+              "Facebook",
+              "Website",
+              "Other",
+              ""
+          ],
+          default: "",
+      },
+
+      profileUrl: {
+          type: String,
+          default: "",
+          trim: true,
+      },
+
+      permissionGranted: {
+          type: Boolean,
+          default: false,
+      },
+  },
 }, { timestamps: true });
 
 recipeSchema.index(
