@@ -31,6 +31,7 @@ exports.getMe = async (req, res) => {
         });
     }
 };
+
 exports.getProfile = async(req, res) => {
     try {
         const {_id} = req.params;
