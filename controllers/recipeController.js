@@ -4,7 +4,7 @@ const likeModel = require("../models/likeModel");
 
 exports.createRecipe = async (req, res) => {
     try {
-        const { imageUrl, title, country, prepTime, tags, servings, cookTime, difficulty, ingredients, instructions, description, category } = req.body;
+        const { imageUrl, title, country, prepTime, tags, servings, cookTime, difficulty, ingredients, instructions, description, category, originalCreator } = req.body;
 
         const createdBy = req.user._id;
 
@@ -30,8 +30,20 @@ exports.createRecipe = async (req, res) => {
             return res.status(400).json({ message: "Ingredients must be a non-empty array" });
         }
 
-        if(!req.user.role) {
-            return res.status(403).json({ message: "You must sign in to create a recipe" });
+        if (!req.user.role) {
+          return res.status(403).json({ message: "You must sign in to create a recipe" });
+        }
+
+        if (originalCreator?.permissionGranted) {
+            if (
+                !originalCreator.name ||
+                !originalCreator.platform ||
+                !originalCreator.profileUrl
+            ) {
+                return res.status(400).json({
+                    message: "Please complete all original creator fields."
+                });
+            }
         }
 
         const recipe = await recipeModel.create({
@@ -47,7 +59,8 @@ exports.createRecipe = async (req, res) => {
             servings,
             cookTime,
             difficulty,
-            createdBy
+            createdBy,
+            originalCreator
         });
 
         res.status(201).json({
@@ -138,7 +151,6 @@ exports.getAllRecipes = async (req, res) => {
   }
 };
 
-
 exports.getRecipeById = async (req, res) => {
   try {
     const { _id } = req.params;
@@ -225,7 +237,8 @@ exports.updateRecipe = async (req, res) => {
       "isFeatured",
       "description",
       "category",   
-      "tags"        
+      "tags",
+      "originalCreator"     
     ];
 
     const updates = {};
@@ -235,6 +248,18 @@ exports.updateRecipe = async (req, res) => {
         updates[field] = req.body[field];
       }
     });
+
+    if (
+        updates.originalCreator?.permissionGranted &&
+        (
+            !updates.originalCreator.name ||
+            !updates.originalCreator.profileUrl
+        )
+    ) {
+        return res.status(400).json({
+            message: "Creator name and profile link are required when permission is granted."
+        });
+    }
 
     // ✅ Remove forbidden fields safely
     delete updates.createdBy;
