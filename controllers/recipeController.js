@@ -79,7 +79,7 @@ exports.getAllRecipes = async (req, res) => {
     const { search = "",
       category,
       page = 1,
-      limit = 10,
+      limit = 30,
     } = req.query;
 
     const filter = {};
