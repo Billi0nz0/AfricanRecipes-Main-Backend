@@ -6,7 +6,7 @@ const canModifyProfile = require("../middlewares/modifyProfile");
 const {getProfile, changePassword, getMe, searchUsers, updateProfile, deleteProfile, updateUserRole, toggleBanUser} = require("../controllers/userController");
 
 
-route.get("/me", getMe);
+route.get("/me", authenticate, authorize("user", "admin", "superAdmin"), getMe);
 route.get("/profile/:_id", authenticate, getProfile);
 route.get("/profiles", authenticate, searchUsers);
 route.put("/profile/:_id", authenticate, updateProfile);
