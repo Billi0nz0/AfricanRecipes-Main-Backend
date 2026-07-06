@@ -41,7 +41,7 @@ const recipeRouter = require("./routers/recipeRouter");
 app.use("/recipes", recipeRouter);
 
 const translateRouter = require("./routers/translateRouter");
-app.use("/api/recipes", translateRouter);
+app.use("/api/recipe", translateRouter);
 
 const commentRouter = require("./routers/commentRouter");
 app.use("/comments", commentRouter);
