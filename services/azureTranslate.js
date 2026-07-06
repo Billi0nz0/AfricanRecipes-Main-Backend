@@ -5,40 +5,50 @@ const key = process.env.AZURE_TRANSLATOR_KEY;
 const region = process.env.AZURE_TRANSLATOR_REGION;
 
 const languageMap = {
+    en: "en",
+
     // Nigeria
-    ig: "ig", // Igbo
-    yo: "yo", // Yoruba
-    ha: "ha", // Hausa
+    ig: "ig",
+    yo: "yo",
+    ha: "ha",
+
+    // West Africa
+    fr: "fr",
+    pt: "pt",
 
     // East Africa
-    sw: "sw", // Swahili
+    sw: "sw",
 
     // North Africa
-    ar: "ar", // Arabic
-
-    // Francophone Africa
-    fr: "fr", // French
-
-    // Lusophone Africa
-    pt: "pt", // Portuguese
+    ar: "ar",
 
     // Southern Africa
-    af: "af", // Afrikaans
+    af: "af",
 
-    // Global fallback
-    en: "en", // English
+    // Global
+    es: "es",
+    de: "de",
+    it: "it",
+    nl: "nl",
+    zh: "zh-Hans",
+    ja: "ja",
+    ko: "ko",
+    ru: "ru",
+    tr: "tr",
 };
 
-if (!languageMap[language]) {
-    throw new Error(`Unsupported language: ${language}`);
-}
-
-const sleep = (ms) =>
-    new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const translate = async (text, language = "ig") => {
 
-    if (!text || !text.trim()) return "";
+    if (!text || !text.trim()) {
+        return "";
+    }
+
+    // Validate language
+    if (!languageMap[language]) {
+        throw new Error(`Unsupported language: ${language}`);
+    }
 
     await sleep(200);
 
@@ -46,8 +56,8 @@ const translate = async (text, language = "ig") => {
         `${endpoint}/translate`,
         [
             {
-                text
-            }
+                text,
+            },
         ],
         {
             params: {
@@ -55,13 +65,12 @@ const translate = async (text, language = "ig") => {
                 from: "en",
                 to: languageMap[language],
             },
-
             headers: {
                 "Ocp-Apim-Subscription-Key": key,
                 "Ocp-Apim-Subscription-Region": region,
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             },
-            timeout: 30000
+            timeout: 30000,
         }
     );
 
