@@ -5,7 +5,7 @@ const ingredientSchema = new mongoose.Schema({
     name: {type: String, required: true},
     quantity: {type: String, required: true}
   }, 
-{ _id: false }
+  { _id: false }
 );
 
 const recipeSchema = new mongoose.Schema({
@@ -24,6 +24,22 @@ const recipeSchema = new mongoose.Schema({
     isFeatured: { type: Boolean, default: false },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    translations: {
+        type: Map,
+        of: {
+            title: String,
+            description: String,
+            ingredients: [
+                {
+                    name: String,
+                    quantity: String,
+                },
+            ],
+            instructions: [String],
+        },
+        default: {},
+    },
+    
     originalCreator: {
       name: {
           type: String,
