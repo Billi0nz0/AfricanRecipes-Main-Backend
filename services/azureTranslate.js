@@ -5,12 +5,33 @@ const key = process.env.AZURE_TRANSLATOR_KEY;
 const region = process.env.AZURE_TRANSLATOR_REGION;
 
 const languageMap = {
-    en: "en",
-    ig: "ig",
-    yo: "yo",
-    ha: "ha",
-    fr: "fr",
+    // Nigeria
+    ig: "ig", // Igbo
+    yo: "yo", // Yoruba
+    ha: "ha", // Hausa
+
+    // East Africa
+    sw: "sw", // Swahili
+
+    // North Africa
+    ar: "ar", // Arabic
+
+    // Francophone Africa
+    fr: "fr", // French
+
+    // Lusophone Africa
+    pt: "pt", // Portuguese
+
+    // Southern Africa
+    af: "af", // Afrikaans
+
+    // Global fallback
+    en: "en", // English
 };
+
+if (!languageMap[language]) {
+    throw new Error(`Unsupported language: ${language}`);
+}
 
 const sleep = (ms) =>
     new Promise(resolve => setTimeout(resolve, ms));
@@ -32,8 +53,9 @@ const translate = async (text, language = "ig") => {
             params: {
                 "api-version": "3.0",
                 from: "en",
-                to: languageMap[language] || "ig"
+                to: languageMap[language],
             },
+
             headers: {
                 "Ocp-Apim-Subscription-Key": key,
                 "Ocp-Apim-Subscription-Region": region,
