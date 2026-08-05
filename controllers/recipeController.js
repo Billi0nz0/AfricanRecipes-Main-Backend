@@ -3,149 +3,170 @@ const recipeModel = require("../models/recipeModel");
 const likeModel = require("../models/likeModel");
 
 exports.createRecipe = async (req, res) => {
-    try {
-        const { imageUrl, title, country, prepTime, tags, servings, cookTime, difficulty, ingredients, instructions, description, category, originalCreator } = req.body;
+  try {
+    const {
+      imageUrl,
+      title,
+      country,
+      prepTime,
+      cookTime,
+      servings,
+      difficulty,
+      tags,
+      ingredients,
+      instructions,
+      description,
+      category,
+      originalCreator,
+    } = req.body;
 
-        const createdBy = req.user._id;
+    const createdBy = req.user?._id;
 
-        if (
-            !imageUrl || 
-            !title || 
-            !country ||
-            !tags || 
-            !ingredients || 
-            !instructions || 
-            !description || 
-            !category || 
-            !difficulty ||
-            !createdBy || 
-            !prepTime || 
-            !servings || 
-            !cookTime
-        ) {
-            return res.status(400).json({ message: "All fields are required" });
-        }
-
-        if (!Array.isArray(ingredients) || ingredients.length === 0) {
-            return res.status(400).json({ message: "Ingredients must be a non-empty array" });
-        }
-
-        if (!req.user.role) {
-          return res.status(403).json({ message: "You must sign in to create a recipe" });
-        }
-
-        if (originalCreator?.permissionGranted) {
-            if (
-                !originalCreator.name ||
-                !originalCreator.platform ||
-                !originalCreator.profileUrl
-            ) {
-                return res.status(400).json({
-                    message: "Please complete all original creator fields."
-                });
-            }
-        }
-
-        const recipe = await recipeModel.create({
-            imageUrl,
-            title,
-            country,
-            ingredients,
-            tags,
-            instructions,
-            description,
-            category,
-            prepTime,
-            servings,
-            cookTime,
-            difficulty,
-            createdBy,
-            originalCreator
-        });
-
-        res.status(201).json({
-            message: "Recipe created successfully",
-            recipe
-        });
-
-    } catch (error) {
-        console.error("Create Recipe Error", error.message);
-        res.status(500).json({ message: "Server error" });
+    if (!createdBy) {
+      return res.status(401).json({
+        message: "You must be signed in to create a recipe.",
+      });
     }
+
+    if (!req.user?.role) {
+      return res.status(403).json({
+        message: "You do not have permission to create recipes.",
+      });
+    }
+
+    if (
+      !imageUrl ||
+      !title ||
+      !country ||
+      !prepTime ||
+      !cookTime ||
+      !servings ||
+      !difficulty ||
+      !description ||
+      !category
+    ) {
+      return res.status(400).json({
+        message: "All required fields must be provided.",
+      });
+    }
+
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+      return res.status(400).json({
+        message: "Ingredients must be a non-empty array.",
+      });
+    }
+
+    if (!Array.isArray(instructions) || instructions.length === 0) {
+      return res.status(400).json({
+        message: "Instructions must be a non-empty array.",
+      });
+    }
+
+    if (originalCreator?.permissionGranted) {
+      if (
+        !originalCreator.name ||
+        !originalCreator.platform ||
+        !originalCreator.profileUrl
+      ) {
+        return res.status(400).json({
+          message: "Please complete all original creator fields.",
+        });
+      }
+    }
+
+    const recipe = await recipeModel.create({
+      imageUrl,
+      title: title.trim(),
+      country: country.trim(),
+      prepTime,
+      cookTime,
+      servings,
+      difficulty,
+      tags: tags || [],
+      ingredients,
+      instructions,
+      description: description.trim(),
+      category,
+      createdBy,
+      originalCreator,
+    });
+
+    return res.status(201).json({
+      message: "Recipe created successfully",
+      recipe,
+    });
+  } catch (error) {
+    console.error("Create Recipe Error:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 
 exports.getAllRecipes = async (req, res) => {
   try {
-    const { search = "",
-      category,
-      page = 1,
-      limit = 30,
-    } = req.query;
+    let { search = "", category, page = 1, limit = 30 } = req.query;
+
+    page = Math.max(Number(page), 1);
+    limit = Math.min(Math.max(Number(limit), 1), 50);
 
     const filter = {};
 
-    // Search across multiple fields
     if (search.trim()) {
-      filter.$or = [
-        {
-          title: {
-            $regex: search,
-            $options: "i",
-          },
-        },
-        {
-          description: {
-            $regex: search,
-            $options: "i",
-          },
-        },
-        {
-          country: {
-            $regex: search,
-            $options: "i",
-          },
-        },
-        {
-          tags: {
-            $regex: search,
-            $options: "i",
-          },
-        },
-        {
-          ingredients: {
-            $elemMatch: {
-              $regex: search,
-              $options: "i",
-            },
-          },
-        },
-      ];
+      filter.$text = {
+        $search: search.trim(),
+      };
     }
 
-    // Category filter
     if (category) {
       filter.category = category;
     }
 
-    const recipes = await recipeModel
+    const query = recipeModel
       .find(filter)
-      .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit))
+      .select(
+        "title imageUrl country prepTime cookTime servings difficulty category createdBy createdAt",
+      )
       .populate("createdBy", "username")
-      .populate("category", "name");
+      .populate("category", "name")
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
 
-    const total = await recipeModel.countDocuments(filter);
+    if (search.trim()) {
+      query
+        .select({
+          score: {
+            $meta: "textScore",
+          },
+        })
+        .sort({
+          score: {
+            $meta: "textScore",
+          },
+        });
+    } else {
+      query.sort({
+        createdAt: -1,
+      });
+    }
 
-    res.status(200).json({
+    const [recipes, total] = await Promise.all([
+      query,
+      recipeModel.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
       recipes,
       total,
-      page: Number(page),
-      limit: Number(limit),
+      page,
+      limit,
     });
   } catch (error) {
     console.error("Get Recipes Error:", error);
-    res.status(500).json({
+
+    return res.status(500).json({
       message: "Server error",
     });
   }
@@ -156,62 +177,79 @@ exports.getRecipeById = async (req, res) => {
     const { _id } = req.params;
     const userId = req.user?._id;
 
-    const recipe = await recipeModel
-      .findById(_id)
-      .populate("createdBy", "username");
+    if (!mongoose.Types.ObjectId.isValid(_id)) {
+      return res.status(400).json({
+        message: "Invalid recipe ID",
+      });
+    }
+
+    const [recipe, likesCount, liked] = await Promise.all([
+      recipeModel
+        .findById(_id)
+        .populate("createdBy", "username")
+        .populate("category", "name")
+        .lean(),
+
+      likeModel.countDocuments({
+        recipe: _id,
+      }),
+
+      userId
+        ? likeModel.exists({
+            recipe: _id,
+            createdBy: userId,
+          })
+        : Promise.resolve(false),
+    ]);
 
     if (!recipe) {
-      return res.status(404).json({ message: "Recipe not found" });
-    }
-
-    // ✅ likes count
-    const likesCount = await likeModel.countDocuments({ recipe: _id });
-
-    // ✅ is liked (only if logged in)
-    let isLiked = false;
-
-    if (userId) {
-      const existing = await likeModel.findOne({
-        recipe: _id,
-        createdBy: userId
+      return res.status(404).json({
+        message: "Recipe not found",
       });
-
-      isLiked = !!existing;
     }
 
-    res.json({
+    return res.status(200).json({
       recipe,
       likesCount,
-      isLiked
+      isLiked: !!liked,
     });
-
   } catch (error) {
-    console.error("GET RECIPE ERROR:", error);
-    res.status(500).json({ message: "Error fetching recipe" });
+    console.error("Get Recipe Error:", error);
+
+    return res.status(500).json({
+      message: "Error fetching recipe",
+    });
   }
 };
 
 exports.getMyRecipes = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { sort = "desc" } = req.query; 
 
-    const sortOption = sort === "asc" 
-      ? { createdAt: 1 } 
-      : { createdAt: -1 };
+    const sort = req.query.sort === "asc" ? 1 : -1;
 
     const recipes = await recipeModel
-      .find({ createdBy: userId })
-      .sort(sortOption)
-      .populate("category", "name");
+      .find({
+        createdBy: userId,
+      })
+      .select(
+        "title imageUrl country prepTime cookTime servings difficulty category createdAt isFeatured",
+      )
+      .populate("category", "name")
+      .sort({
+        createdAt: sort,
+      })
+      .lean();
 
-    res.status(200).json({
-      recipes
+    return res.status(200).json({
+      recipes,
     });
-
   } catch (error) {
-    console.error("Get My Recipes Error:", error.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Get My Recipes Error:", error);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
   }
 };
 
@@ -220,10 +258,11 @@ exports.updateRecipe = async (req, res) => {
     const { _id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(_id)) {
-      return res.status(400).json({ message: "Invalid recipe ID" });
+      return res.status(400).json({
+        message: "Invalid recipe ID",
+      });
     }
 
-    // ✅ Fields allowed to update
     const allowedFields = [
       "imageUrl",
       "title",
@@ -234,155 +273,265 @@ exports.updateRecipe = async (req, res) => {
       "difficulty",
       "ingredients",
       "instructions",
-      "isFeatured",
       "description",
-      "category",   
+      "category",
       "tags",
-      "originalCreator"     
+      "isFeatured",
+      "originalCreator",
     ];
 
     const updates = {};
 
-    allowedFields.forEach(field => {
+    for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
       }
-    });
-
-    if (
-        updates.originalCreator?.permissionGranted &&
-        (
-            !updates.originalCreator.name ||
-            !updates.originalCreator.profileUrl
-        )
-    ) {
-        return res.status(400).json({
-            message: "Creator name and profile link are required when permission is granted."
-        });
     }
 
-    // ✅ Remove forbidden fields safely
-    delete updates.createdBy;
-    delete updates._id;
+    if (
+      updates.originalCreator?.permissionGranted &&
+      (!updates.originalCreator.name || !updates.originalCreator.profileUrl)
+    ) {
+      return res.status(400).json({
+        message:
+          "Creator name and profile link are required when permission is granted.",
+      });
+    }
 
-    const recipe = await recipeModel.findByIdAndUpdate(
-      _id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    )
-    .populate("category", "name")
-    .populate("createdBy", "username");
+    const recipe = await recipeModel
+      .findByIdAndUpdate(
+        _id,
+        { $set: updates },
+        {
+          new: true,
+          runValidators: true,
+        },
+      )
+      .populate("category", "name")
+      .populate("createdBy", "username");
 
     if (!recipe) {
-      return res.status(404).json({ message: "Recipe not found" });
+      return res.status(404).json({
+        message: "Recipe not found",
+      });
     }
 
     res.status(200).json({
       message: "Recipe updated successfully",
-      recipe
+      recipe,
     });
-
   } catch (error) {
-    console.error("Update Recipe Error:", error.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Update Recipe Error:", error);
+    res.status(500).json({
+      message: "Server error",
+    });
   }
 };
 
 exports.deleteRecipe = async (req, res) => {
-    try {
-        const { _id } = req.params;
-        const recipe = await recipeModel.findByIdAndDelete(_id);
-        if (!recipe) {
-            return res.status(404).json({ message: "Recipe not found" });
-        }
-        res.status(200).json({
-            message: "Recipe deleted successfully"
-        });
-    } catch (error) {
-        console.error("Delete Recipe Error:", error.message);
-        res.status(500).json({ message: "Server error" });
+  try {
+    const { _id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(_id)) {
+      return res.status(400).json({
+        message: "Invalid recipe ID",
+      });
     }
+
+    const recipe = await recipeModel.findByIdAndDelete(_id);
+
+    if (!recipe) {
+      return res.status(404).json({
+        message: "Recipe not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Recipe deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete Recipe Error:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 
 exports.getRecipesByCategory = async (req, res) => {
-    try {
-        const { _id } = req.params;
+  try {
+    const { _id } = req.params;
 
-        const { page = 1, limit = 10 } = req.query;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
 
-        const recipes = await recipeModel.find({ categoryId: _id })
+    const [recipes, total] = await Promise.all([
+      recipeModel
+        .find({ category: _id })
+        .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
-        .limit(Number(limit))
-        .populate("createdBy", "username email")
-        .populate("category", "name");
+        .limit(limit)
+        .populate("createdBy", "username")
+        .populate("category", "name"),
 
-        res.status(200).json({ message: "Recipes retrieved successfully", recipes});
-    } catch (error) {
-        console.error("Get Recipes by Category Error:", error.message);
-        res.status(500).json({ message: "Server error" });
-    }
+      recipeModel.countDocuments({
+        category: _id,
+      }),
+    ]);
+
+    res.status(200).json({
+      recipes,
+      total,
+      page,
+      limit,
+    });
+  } catch (error) {
+    console.error("Category Recipes Error:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 
 exports.getRecipesByCountry = async (req, res) => {
-    try {
-        const { country } = req.params;
+  try {
+    const { country } = req.params;
 
-        const recipes = await recipeModel.find({ country: country })
-            .populate("createdBy", "username")
-            .populate("category", "name");
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 12;
 
-        res.status(200).json({ message: "Recipes retrieved successfully", recipes });
-    } catch (error) {
-        console.error("Get Recipes by Country Error:", error.message);
-        res.status(500).json({ message: "Server error" });
-    }
+    const [recipes, total] = await Promise.all([
+      recipeModel
+        .find({
+          country: new RegExp(`^${country}$`, "i"),
+        })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("createdBy", "username")
+        .populate("category", "name"),
+
+      recipeModel.countDocuments({
+        country: new RegExp(`^${country}$`, "i"),
+      }),
+    ]);
+
+    res.status(200).json({
+      recipes,
+      total,
+      page,
+      limit,
+    });
+  } catch (error) {
+    console.error("Country Recipes Error:", error);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 
 exports.getFeaturedRecipes = async (req, res) => {
   try {
     const featuredRecipes = await recipeModel
-      .find({ isFeatured: true })
-      .populate("createdBy", "username email")
+      .find(
+        { isFeatured: true },
+        {
+          title: 1,
+          imageUrl: 1,
+          country: 1,
+          prepTime: 1,
+          cookTime: 1,
+          servings: 1,
+          difficulty: 1,
+          category: 1,
+          createdBy: 1,
+          createdAt: 1,
+        },
+      )
+      .sort({ createdAt: -1 })
+      .limit(8)
       .populate("category", "name")
-      .limit(8);
+      .populate("createdBy", "username")
+      .lean();
 
     res.status(200).json({
-        message: "Featured recipes retrieved successfully",
-        recipes: featuredRecipes
+      message: "Featured recipes retrieved successfully",
+      recipes: featuredRecipes,
     });
   } catch (error) {
+    console.error("Featured Recipes Error:", error);
+
     res.status(500).json({
       message: "Failed to fetch featured recipes",
-      error: error.message
     });
   }
 };
 
 exports.getRandomRecipes = async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 10;
+  try {
+    const limit = Math.min(Number(req.query.limit) || 10, 20);
 
-        const randomRecipes = await recipeModel.aggregate([
-            { $sample: { size: limit } }
-        ]);
+    const recipes = await recipeModel.aggregate([
+      {
+        $sample: {
+          size: limit,
+        },
+      },
 
-        const populatedRecipes = await recipeModel.populate(randomRecipes, [
-            { path: "createdBy", select: "username email" },
-            { path: "category", select: "name" }
-        ]);
+      {
+        $lookup: {
+          from: "users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
 
-        res.status(200).json({
-            success: true,
-            recipes: populatedRecipes
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Failed to fetch random recipes",
-            error: error.message
-        });
-    }
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+
+      {
+        $unwind: "$createdBy",
+      },
+
+      {
+        $unwind: "$category",
+      },
+
+      {
+        $project: {
+          title: 1,
+          imageUrl: 1,
+          country: 1,
+          prepTime: 1,
+          cookTime: 1,
+          servings: 1,
+          difficulty: 1,
+
+          "createdBy.username": 1,
+          "category.name": 1,
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      recipes,
+    });
+  } catch (error) {
+    console.error("Random Recipes Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch random recipes",
+    });
+  }
 };
-
-    
-
