@@ -557,10 +557,16 @@ exports.getRandomRecipes = async (req, res) => {
     const cached = cache.get(cacheKey);
 
     if (cached) {
-      return res.json(cached);
+      return res.status(200).json(cached);
     }
 
     const recipes = await recipeModel.aggregate([
+      {
+        $match: {
+          isFeatured: { $ne: false }, // optional
+        },
+      },
+
       {
         $sample: {
           size: limit,
@@ -572,6 +578,13 @@ exports.getRandomRecipes = async (req, res) => {
           from: "users",
           localField: "createdBy",
           foreignField: "_id",
+          pipeline: [
+            {
+              $project: {
+                username: 1,
+              },
+            },
+          ],
           as: "createdBy",
         },
       },
@@ -581,6 +594,13 @@ exports.getRandomRecipes = async (req, res) => {
           from: "categories",
           localField: "category",
           foreignField: "_id",
+          pipeline: [
+            {
+              $project: {
+                name: 1,
+              },
+            },
+          ],
           as: "category",
         },
       },
@@ -602,7 +622,7 @@ exports.getRandomRecipes = async (req, res) => {
           cookTime: 1,
           servings: 1,
           difficulty: 1,
-
+          createdAt: 1,
           "createdBy.username": 1,
           "category.name": 1,
         },
@@ -620,7 +640,7 @@ exports.getRandomRecipes = async (req, res) => {
   } catch (error) {
     console.error("Random Recipes Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch random recipes",
     });
