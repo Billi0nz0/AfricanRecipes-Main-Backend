@@ -542,92 +542,38 @@ exports.getFeaturedRecipes = async (req, res) => {
 };
 
 exports.getRandomRecipes = async (req, res) => {
-  try {
-    const requestedLimit = Number(req.query.limit);
-    const limit = Math.min(10, Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 10, 1));
+    try {
+        const limit = parseInt(req.query.limit) || 10;
 
-    const cacheKey = keys.RANDOM(limit);
-    const cached = cache.get(cacheKey);
+        const cacheKey = keys.RANDOM(limit);
+        const cached = cache.get(cacheKey);
 
-    if (cached) {
-      return res.status(200).json(cached);
+        if (cached) {
+          return res.status(200).json(cached);
+        }
+
+        const randomRecipes = await recipeModel.aggregate([
+            { $sample: { size: limit } }
+        ]);
+
+        const populatedRecipes = await recipeModel.populate(randomRecipes, [
+            { path: "createdBy", select: "username email" },
+            { path: "category", select: "name" }
+        ]);
+
+        const response = {
+          success: true,
+          recipes,
+        };
+
+        cache.set(cacheKey, response, 30);
+
+        return res.status(200).json(response);
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch random recipes",
+            error: error.message
+        });
     }
-
-    const recipes = await recipeModel.aggregate([
-      {
-        $match: {
-          isFeatured: { $ne: false },
-        },
-      },
-      {
-        $sample: { size: limit },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "createdBy",
-          foreignField: "_id",
-          pipeline: [
-            {
-              $project: {
-                username: 1,
-              },
-            },
-          ],
-          as: "createdBy",
-        },
-      },
-      {
-        $lookup: {
-          from: "categories",
-          localField: "category",
-          foreignField: "_id",
-          pipeline: [
-            {
-              $project: {
-                name: 1,
-              },
-            },
-          ],
-          as: "category",
-        },
-      },
-      {
-        $unwind: "$createdBy",
-      },
-      {
-        $unwind: "$category",
-      },
-      {
-        $project: {
-          title: 1,
-          imageUrl: 1,
-          country: 1,
-          prepTime: 1,
-          cookTime: 1,
-          servings: 1,
-          difficulty: 1,
-          createdAt: 1,
-          "createdBy.username": 1,
-          "category.name": 1,
-        },
-      },
-    ]);
-
-    const response = {
-      success: true,
-      recipes,
-    };
-
-    cache.set(cacheKey, response, 30);
-
-    return res.status(200).json(response);
-  } catch (error) {
-    console.error("Random Recipes Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch random recipes",
-    });
-  }
 };
