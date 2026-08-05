@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const recipeModel = require("../models/recipeModel");
 const likeModel = require("../models/likeModel");
+const cache = require("../utils/cache");
+const keys = require("../utils/cacheKeys");
 
 exports.createRecipe = async (req, res) => {
   try {
@@ -91,10 +93,16 @@ exports.createRecipe = async (req, res) => {
       originalCreator,
     });
 
-    return res.status(201).json({
+    const response = {
       message: "Recipe created successfully",
       recipe,
-    });
+    };
+
+    cache.flushAll();
+
+    return res.status(201).json(response);
+
+
   } catch (error) {
     console.error("Create Recipe Error:", error);
 
@@ -109,6 +117,14 @@ exports.getAllRecipes = async (req, res) => {
     let { search = "", category, page = 1, limit = 30 } = req.query;
 
     const keyword = search.trim();
+
+    const cacheKey = keys.ALL_RECIPES(page, limit, category, keyword);
+
+    const cached = cache.get(cacheKey);
+
+    if (cached) {
+      return res.status(200).json(cached);
+    }
 
     page = Math.max(Number(page), 1);
     limit = Math.min(Math.max(Number(limit), 1), 50);
@@ -152,21 +168,23 @@ exports.getAllRecipes = async (req, res) => {
       query.sort({ createdAt: -1 });
     }
 
-    query
-      .skip((page - 1) * limit)
-      .limit(limit);
+    query.skip((page - 1) * limit).limit(limit);
 
     const [recipes, total] = await Promise.all([
       query,
       recipeModel.countDocuments(filter),
     ]);
 
-    return res.status(200).json({
+    const response = {
       recipes,
       total,
       page,
       limit,
-    });
+    };
+
+    cache.set(cacheKey, response, 60);
+
+    return res.status(200).json(response);
 
   } catch (error) {
     console.error("Get Recipes Error:", error);
@@ -181,6 +199,14 @@ exports.getRecipeById = async (req, res) => {
   try {
     const { _id } = req.params;
     const userId = req.user?._id;
+
+    const cacheKey = keys.RECIPE(_id);
+
+    const cached = cache.get(cacheKey);
+
+    if (cached && !req.user) {
+      return res.status(200).json(cached);
+    }
 
     if (!mongoose.Types.ObjectId.isValid(_id)) {
       return res.status(400).json({
@@ -201,9 +227,9 @@ exports.getRecipeById = async (req, res) => {
 
       userId
         ? likeModel.exists({
-            recipe: _id,
-            createdBy: userId,
-          })
+          recipe: _id,
+          createdBy: userId,
+        })
         : Promise.resolve(false),
     ]);
 
@@ -213,11 +239,18 @@ exports.getRecipeById = async (req, res) => {
       });
     }
 
-    return res.status(200).json({
+    const response = {
       recipe,
       likesCount,
       isLiked: !!liked,
-    });
+    };
+
+    // Don't cache user-specific likes
+    if (!req.user) {
+      cache.set(cacheKey, response, 60);
+    }
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("Get Recipe Error:", error);
 
@@ -321,10 +354,13 @@ exports.updateRecipe = async (req, res) => {
       });
     }
 
+    cache.flushAll();
+
     res.status(200).json({
       message: "Recipe updated successfully",
       recipe,
     });
+
   } catch (error) {
     console.error("Update Recipe Error:", error);
     res.status(500).json({
@@ -351,9 +387,14 @@ exports.deleteRecipe = async (req, res) => {
       });
     }
 
+    cache.flushAll();
+
     res.status(200).json({
       message: "Recipe deleted successfully",
     });
+
+
+
   } catch (error) {
     console.error("Delete Recipe Error:", error);
 
@@ -366,9 +407,15 @@ exports.deleteRecipe = async (req, res) => {
 exports.getRecipesByCategory = async (req, res) => {
   try {
     const { _id } = req.params;
-
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
+
+    const cacheKey = keys.CATEGORY(_id, page, limit);
+    const cached = cache.get(cacheKey);
+
+    if (cached) {
+      return res.json(cached);
+    }
 
     const [recipes, total] = await Promise.all([
       recipeModel
@@ -384,12 +431,16 @@ exports.getRecipesByCategory = async (req, res) => {
       }),
     ]);
 
-    res.status(200).json({
+    const response = {
       recipes,
       total,
       page,
       limit,
-    });
+    };
+
+    cache.set(cacheKey, response, 60);
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("Category Recipes Error:", error);
 
@@ -402,9 +453,16 @@ exports.getRecipesByCategory = async (req, res) => {
 exports.getRecipesByCountry = async (req, res) => {
   try {
     const { country } = req.params;
-
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 12;
+
+    const cacheKey = keys.COUNTRY(country, page, limit);
+
+    const cached = cache.get(cacheKey);
+
+    if (cached) {
+      return res.json(cached);
+    }
 
     const [recipes, total] = await Promise.all([
       recipeModel
@@ -422,12 +480,16 @@ exports.getRecipesByCountry = async (req, res) => {
       }),
     ]);
 
-    res.status(200).json({
+    const response = {
       recipes,
       total,
       page,
       limit,
-    });
+    };
+
+    cache.set(cacheKey, response, 60);
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("Country Recipes Error:", error);
 
@@ -439,6 +501,14 @@ exports.getRecipesByCountry = async (req, res) => {
 
 exports.getFeaturedRecipes = async (req, res) => {
   try {
+    const cacheKey = keys.FEATURED;
+
+    const cached = cache.get(cacheKey);
+
+    if (cached) {
+      return res.json(cached);
+    }
+
     const featuredRecipes = await recipeModel
       .find(
         { isFeatured: true },
@@ -461,10 +531,14 @@ exports.getFeaturedRecipes = async (req, res) => {
       .populate("createdBy", "username")
       .lean();
 
-    res.status(200).json({
+    const response = {
       message: "Featured recipes retrieved successfully",
       recipes: featuredRecipes,
-    });
+    };
+
+    cache.set(cacheKey, response, 300); // 5 minutes
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("Featured Recipes Error:", error);
 
@@ -477,6 +551,14 @@ exports.getFeaturedRecipes = async (req, res) => {
 exports.getRandomRecipes = async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 10, 20);
+
+    const cacheKey = keys.RANDOM(limit);
+
+    const cached = cache.get(cacheKey);
+
+    if (cached) {
+      return res.json(cached);
+    }
 
     const recipes = await recipeModel.aggregate([
       {
@@ -527,10 +609,14 @@ exports.getRandomRecipes = async (req, res) => {
       },
     ]);
 
-    res.status(200).json({
+    const response = {
       success: true,
       recipes,
-    });
+    };
+
+    cache.set(cacheKey, response, 30);
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("Random Recipes Error:", error);
 
