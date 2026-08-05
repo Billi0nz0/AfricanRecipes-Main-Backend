@@ -108,49 +108,53 @@ exports.getAllRecipes = async (req, res) => {
   try {
     let { search = "", category, page = 1, limit = 30 } = req.query;
 
+    const keyword = search.trim();
+
     page = Math.max(Number(page), 1);
     limit = Math.min(Math.max(Number(limit), 1), 50);
 
     const filter = {};
 
-    if (search.trim()) {
-      filter.$text = {
-        $search: search.trim(),
-      };
+    if (keyword) {
+      filter.$text = { $search: keyword };
     }
 
     if (category) {
       filter.category = category;
     }
 
+    const projection = {
+      title: 1,
+      imageUrl: 1,
+      country: 1,
+      prepTime: 1,
+      cookTime: 1,
+      servings: 1,
+      difficulty: 1,
+      category: 1,
+      createdBy: 1,
+      createdAt: 1,
+    };
+
+    if (keyword) {
+      projection.score = { $meta: "textScore" };
+    }
+
     const query = recipeModel
-      .find(filter)
-      .select(
-        "title imageUrl country prepTime cookTime servings difficulty category createdBy createdAt",
-      )
+      .find(filter, projection)
       .populate("createdBy", "username")
       .populate("category", "name")
-      .skip((page - 1) * limit)
-      .limit(limit)
       .lean();
 
-    if (search.trim()) {
-      query
-        .select({
-          score: {
-            $meta: "textScore",
-          },
-        })
-        .sort({
-          score: {
-            $meta: "textScore",
-          },
-        });
+    if (keyword) {
+      query.sort({ score: { $meta: "textScore" } });
     } else {
-      query.sort({
-        createdAt: -1,
-      });
+      query.sort({ createdAt: -1 });
     }
+
+    query
+      .skip((page - 1) * limit)
+      .limit(limit);
 
     const [recipes, total] = await Promise.all([
       query,
@@ -163,6 +167,7 @@ exports.getAllRecipes = async (req, res) => {
       page,
       limit,
     });
+
   } catch (error) {
     console.error("Get Recipes Error:", error);
 
