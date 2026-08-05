@@ -1,15 +1,16 @@
-exports.ALL_RECIPES = (page, limit, category, search) =>
-  `recipes:${page}:${limit}:${category || "all"}:${search || "none"}`;
+module.exports = {
+  ALL_RECIPES: (page, limit, category, search) =>
+    `recipes:${page}:${limit}:${category || "all"}:${search || ""}`,
 
-exports.RECIPE = (id) =>
-  `recipe:${id}`;
+  RECIPE: (id) => `recipe:${id}`,
 
-exports.CATEGORY = (id) =>
-  `recipes-category:${id}`;
+  CATEGORY: (id, page, limit) =>
+    `category:${id}:${page}:${limit}`,
 
-exports.COUNTRY = (country) =>
-  `recipes-country:${country}`;
+  COUNTRY: (country, page, limit) =>
+    `country:${country}:${page}:${limit}`,
 
-exports.FEATURED = "featured-recipes";
+  FEATURED: "featured-recipes",
 
-exports.RANDOM = "random-recipes";
+  RANDOM: (limit) => `random:${limit}`,
+};
