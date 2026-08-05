@@ -515,14 +515,7 @@ exports.getFeaturedRecipes = async (req, res) => {
         {
           title: 1,
           imageUrl: 1,
-          country: 1,
-          prepTime: 1,
-          cookTime: 1,
-          servings: 1,
-          difficulty: 1,
-          category: 1,
-          createdBy: 1,
-          createdAt: 1,
+          description: 1,
         },
       )
       .sort({ createdAt: -1 })
