@@ -550,10 +550,10 @@ exports.getFeaturedRecipes = async (req, res) => {
 
 exports.getRandomRecipes = async (req, res) => {
   try {
-    const limit = Math.min(Number(req.query.limit) || 10, 20);
+    const requestedLimit = Number(req.query.limit);
+    const limit = Math.min(10, Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 10, 1));
 
     const cacheKey = keys.RANDOM(limit);
-
     const cached = cache.get(cacheKey);
 
     if (cached) {
@@ -563,16 +563,12 @@ exports.getRandomRecipes = async (req, res) => {
     const recipes = await recipeModel.aggregate([
       {
         $match: {
-          isFeatured: { $ne: false }, // optional
+          isFeatured: { $ne: false },
         },
       },
-
       {
-        $sample: {
-          size: limit,
-        },
+        $sample: { size: limit },
       },
-
       {
         $lookup: {
           from: "users",
@@ -588,7 +584,6 @@ exports.getRandomRecipes = async (req, res) => {
           as: "createdBy",
         },
       },
-
       {
         $lookup: {
           from: "categories",
@@ -604,15 +599,12 @@ exports.getRandomRecipes = async (req, res) => {
           as: "category",
         },
       },
-
       {
         $unwind: "$createdBy",
       },
-
       {
         $unwind: "$category",
       },
-
       {
         $project: {
           title: 1,
