@@ -542,38 +542,43 @@ exports.getFeaturedRecipes = async (req, res) => {
 };
 
 exports.getRandomRecipes = async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 10;
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 10, 20);
 
-        const cacheKey = keys.RANDOM(limit);
-        const cached = cache.get(cacheKey);
+    const cacheKey = keys.RANDOM(limit);
+    const cached = cache.get(cacheKey);
 
-        if (cached) {
-          return res.status(200).json(cached);
-        }
-
-        const randomRecipes = await recipeModel.aggregate([
-            { $sample: { size: limit } }
-        ]);
-
-        const populatedRecipes = await recipeModel.populate(randomRecipes, [
-            { path: "createdBy", select: "username email" },
-            { path: "category", select: "name" }
-        ]);
-
-        const response = {
-          success: true,
-          recipes,
-        };
-
-        cache.set(cacheKey, response, 30);
-
-        return res.status(200).json(response);
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Failed to fetch random recipes",
-            error: error.message
-        });
+    if (cached) {
+      return res.status(200).json(cached);
     }
+
+    const randomRecipes = await recipeModel.aggregate([
+      {
+        $sample: {
+          size: limit,
+        },
+      },
+    ]);
+
+    const populatedRecipes = await recipeModel.populate(randomRecipes, [
+      { path: "createdBy", select: "username email" },
+      { path: "category", select: "name" },
+    ]);
+
+    const response = {
+      success: true,
+      recipes: populatedRecipes,
+    };
+
+    cache.set(cacheKey, response, 30);
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error("Random Recipes Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch random recipes",
+    });
+  }
 };
