@@ -4,7 +4,7 @@ const sendEmail = require("../utils/emailService");
 
 const contactNotification = require("../emailTemplates/contactNotify");
 const contactConfirmation = require("../emailTemplates/contactMailConfirm");
-const RECIEVE = process.env.CONTACT_EMAI
+const RECIEVE = process.env.CONTACT_EMAIL
 
 exports.contactUs = async (req, res) => {
     try {
