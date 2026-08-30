@@ -16,6 +16,6 @@ const contactLimiter = rateLimit({
     },
 });
 
-route.post("/", contactLimiter, contactUs);
+route.post("/", contactLimiter, authenticate, contactUs);
 
 module.exports = route;
