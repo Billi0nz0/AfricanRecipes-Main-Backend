@@ -2,6 +2,8 @@ const express = require("express");
 const route = express.Router();
 const { contactUs } = require("../controllers/contactController");
 const rateLimit = require("express-rate-limit");
+const authenticate = require("../middlewares/auth");
+
 
 const contactLimiter = rateLimit({
     windowMs: 24 * 60 * 60 * 1000, // 24hrs
