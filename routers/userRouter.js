@@ -5,7 +5,7 @@ const {register, verifyEmail, login, logout, forgotPassword, resetPassword} = re
 const rateLimit = require("express-rate-limit");
 const regLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5,
+    max: 3,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
@@ -27,7 +27,7 @@ const loginLimiter = rateLimit({
 
 const resetLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 3,
+    max: 1,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
